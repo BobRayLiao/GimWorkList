@@ -20,4 +20,8 @@
 	More options:
 	http://livedocs.adobe.com/flex/3/html/File_formats_1.html#1043413
 	-->
+  <icon>
+    <image16x16>icons/GimWorkList16.png</image16x16>
+    <image48x48>icons/GimWorkList48.png</image48x48>
+  </icon>
 </application>
