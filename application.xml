@@ -9,7 +9,7 @@
     <content>GimWorkList.swf</content>
     <systemChrome>none</systemChrome>
     <transparent>true</transparent>
-    <visible>true</visible>
+    <visible>false</visible>
     <minimizable>false</minimizable>
     <maximizable>false</maximizable>
     <resizable>false</resizable>

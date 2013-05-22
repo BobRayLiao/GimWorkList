@@ -1,16 +1,27 @@
 package
 {
+	import flash.desktop.Icon;
 	import flash.desktop.NativeApplication;
+	import flash.desktop.SystemTrayIcon;
+	import flash.display.Bitmap;
+	import flash.display.NativeMenu;
+	import flash.display.NativeMenuItem;
+	import flash.display.NativeWindow;
+	import flash.display.NativeWindowInitOptions;
+	import flash.display.NativeWindowType;
 	import flash.display.Sprite;
 	import flash.display.StageAlign;
 	import flash.display.StageScaleMode;
 	import flash.events.Event;
 	import flash.events.MouseEvent;
+	import flash.events.TimerEvent;
 	import flash.filesystem.File;
 	import flash.filesystem.FileMode;
 	import flash.filesystem.FileStream;
+	import flash.filters.BitmapFilterType;
 	import flash.filters.DropShadowFilter;
 	import flash.filters.GlowFilter;
+	import flash.filters.GradientGlowFilter;
 	import flash.system.Capabilities;
 	import flash.text.AntiAliasType;
 	import flash.text.Font;
@@ -18,6 +29,7 @@ package
 	import flash.text.TextFieldType;
 	import flash.text.TextFormat;
 	import flash.text.TextFormatAlign;
+	import flash.utils.Timer;
 	
 	/**
 	 * ...
@@ -30,39 +42,61 @@ package
 		private const BB_FONT:Font = new EMBED_FONT() as Font;
 		private const DEFAULT_TEXT_FORMAT:TextFormat = new TextFormat(BB_FONT.fontName, 15, 0x222222, true, null, null, null, null, TextFormatAlign.JUSTIFY, 10, 10, 20, 2);
 		
+		[Embed(source = "ico.png")]
+		private const ICON:Class;
+		private const APP_CION:Bitmap = new ICON() as Bitmap;
+		
 		private const MAIN_CONTAINER_WIDTH:Number = 240;
 		private const DRAG_BAR_RADIUS:Number = 6;
 		private const DATA_PATH:String = "workListData.wld";
+		private const PADDING:Number = 8;
 		
 		private var _isHide:Boolean = false;
 		private var _mainContainer:Sprite;
 		private var _menu:Sprite;
 		private var _fileStream:FileStream;
+		private var _mainWidow:NativeWindow;
 		
 		public function Main():void
 		{
-			if (stage)
-				init();
-			else
-				this.addEventListener(Event.ADDED_TO_STAGE, init);
-		}
-		
-		private function init():void
-		{
+			//app configuration
+			var iconMenu:NativeMenu = new NativeMenu();
+			var exitCommand:NativeMenuItem = iconMenu.addItem(new NativeMenuItem("EXIT"));
+			exitCommand.addEventListener(Event.SELECT,onExit);
 			NativeApplication.nativeApplication.autoExit = true;
-			stage.nativeWindow.alwaysInFront = true;
-			stage.align = StageAlign.TOP_LEFT;
-			stage.scaleMode = StageScaleMode.NO_SCALE;
-			stage.stageWidth = Capabilities.screenResolutionX;
-			stage.stageHeight = Capabilities.screenResolutionY;
+			if (NativeApplication.supportsSystemTrayIcon)
+			{
+				var systray:SystemTrayIcon = NativeApplication.nativeApplication.icon as SystemTrayIcon;
+				systray.tooltip = "Gim Worklist Manager | GimStudio® Copyright";
+				systray.menu = iconMenu;
+				NativeApplication.nativeApplication.icon.bitmaps = [APP_CION.bitmapData];
+			}
+			
+			//window configuration
+			var initOptions:NativeWindowInitOptions = new NativeWindowInitOptions();
+			initOptions.type = NativeWindowType.UTILITY;
+			initOptions.minimizable = false;
+			initOptions.systemChrome = "none";
+			initOptions.transparent = true;
+			_mainWidow = new NativeWindow(initOptions);
+			_mainWidow.activate();
+			_mainWidow.alwaysInFront = false;
+			_mainWidow.x = 0;
+			_mainWidow.y = 0;
+			
+			//stage configuration
+			_mainWidow.stage.align = StageAlign.TOP_LEFT;
+			_mainWidow.stage.scaleMode = StageScaleMode.NO_SCALE;
+			_mainWidow.stage.stageWidth = Capabilities.screenResolutionX;
+			_mainWidow.stage.stageHeight = Capabilities.screenResolutionY;
 			
 			//main container
 			_mainContainer = new Sprite();
-			this.addChild(_mainContainer);
+			_mainWidow.stage.addChild(_mainContainer);
 			
-			_mainContainer.x = stage.stageWidth - MAIN_CONTAINER_WIDTH;
+			_mainContainer.x = _mainWidow.stage.stageWidth - MAIN_CONTAINER_WIDTH;
 			_mainContainer.graphics.beginFill(0xffff99, 0.9);
-			_mainContainer.graphics.drawRect(0, 0, MAIN_CONTAINER_WIDTH, 400);
+			_mainContainer.graphics.drawRect(0, 0, MAIN_CONTAINER_WIDTH, 600);
 			_mainContainer.graphics.endFill();
 			_mainContainer.filters = [new DropShadowFilter(0, 0, 0x222222, 0.8, 4, 4)];
 			
@@ -71,7 +105,8 @@ package
 			_mainContainer.addChild(textField);
 			
 			textField.width = _mainContainer.width;
-			textField.height = _mainContainer.height;
+			textField.height = _mainContainer.height - PADDING - PADDING;
+			textField.y = PADDING;
 			textField.defaultTextFormat = DEFAULT_TEXT_FORMAT;
 			textField.type = TextFieldType.INPUT;
 			textField.cacheAsBitmap = true;
@@ -82,11 +117,11 @@ package
 			
 			//menuPoint
 			var menuPoint:Sprite = new Sprite();
-			this.addChild(menuPoint);
+			_mainWidow.stage.addChild(menuPoint);
 			
 			menuPoint.buttonMode = true;
 			menuPoint.useHandCursor = true;
-			menuPoint.x = stage.stageWidth;
+			menuPoint.x = _mainWidow.stage.stageWidth;
 			menuPoint.graphics.beginFill(0xff0033, 0.9);
 			menuPoint.graphics.drawCircle(0, 0, DRAG_BAR_RADIUS);
 			menuPoint.graphics.endFill();
@@ -94,9 +129,9 @@ package
 			
 			//menu
 			_menu = new Sprite();
-			addChild(_menu);
+			_mainWidow.stage.addChild(_menu);
 			
-			_menu.x = stage.stageWidth - 100;
+			_menu.x = _mainWidow.stage.stageWidth - 100;
 			_menu.graphics.beginFill(0xffffff, 0.9);
 			_menu.graphics.drawRect(0, 0, 100, 100);
 			_menu.graphics.endFill();
@@ -122,7 +157,7 @@ package
 			textField.addEventListener(Event.CHANGE, onTextFieldChange);
 			menuPoint.addEventListener(MouseEvent.CLICK, onMenuPointClick);
 			menuPoint.addEventListener(MouseEvent.RIGHT_CLICK, onMenuPointRightClick);
-			this.addEventListener(MouseEvent.CLICK, onClick);
+			_mainWidow.stage.addEventListener(MouseEvent.CLICK, onClick);
 			exitButton.addEventListener(MouseEvent.CLICK, onExit);
 		}
 		
@@ -145,7 +180,7 @@ package
 			_isHide = !_isHide;
 			
 			TweenLite.killTweensOf(_mainContainer);
-			TweenLite.to(_mainContainer, 0.5, {scaleX: (_isHide ? 0 : 1), scaleY: (_isHide ? 0 : 1), x: stage.stageWidth - (_isHide ? 0 : MAIN_CONTAINER_WIDTH)});
+			TweenLite.to(_mainContainer, 0.5, {scaleX: (_isHide ? 0 : 1), scaleY: (_isHide ? 0 : 1), x: _mainWidow.stage.stageWidth - (_isHide ? 0 : MAIN_CONTAINER_WIDTH)});
 		}
 		
 		/*
@@ -167,8 +202,9 @@ package
 		/*
 		 * application exit handler
 		 * */
-		private function onExit(e:MouseEvent):void
+		private function onExit(e:Event):void
 		{
+			NativeApplication.nativeApplication.icon.bitmaps = [];
 			NativeApplication.nativeApplication.exit();
 		}
 	
